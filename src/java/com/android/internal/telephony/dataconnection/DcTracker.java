@@ -58,6 +58,8 @@ import com.android.internal.telephony.DctConstants;
 import com.android.internal.telephony.EventLogTags;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.telephony.gsm.GSMPhone;
+import com.android.internal.telephony.cdma.CDMAPhone;
+import com.android.internal.telephony.cdma.CdmaSubscriptionSourceManager;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.uicc.IccRecords;
@@ -113,6 +115,8 @@ public final class DcTracker extends DcTrackerBase {
     /** Watches for changes to the APN db. */
     private ApnChangeObserver mApnObserver;
 
+    private CdmaSubscriptionSourceManager mCdmaSsm;
+
     //***** Constructor
 
     public DcTracker(PhoneBase p) {
@@ -138,6 +142,14 @@ public final class DcTracker extends DcTrackerBase {
                 DctConstants.EVENT_PS_RESTRICT_ENABLED, null);
         p.getServiceStateTracker().registerForPsRestrictedDisabled(this,
                 DctConstants.EVENT_PS_RESTRICT_DISABLED, null);
+
+        if (p.getPhoneType() == PhoneConstants.PHONE_TYPE_CDMA) {
+            mCdmaSsm = CdmaSubscriptionSourceManager.getInstance(
+                    p.getContext(), p.mCi, this,
+                    DctConstants.EVENT_CDMA_SUBSCRIPTION_SOURCE_CHANGED, null);
+            // CdmaSsm doesn't send this event whenever you register - fake it ourselves
+           sendMessage(obtainMessage(DctConstants.EVENT_CDMA_SUBSCRIPTION_SOURCE_CHANGED));
+        }
 
         mDataConnectionTracker = this;
 
@@ -192,6 +204,10 @@ public final class DcTracker extends DcTrackerBase {
         mPhone.getContext().getContentResolver().unregisterContentObserver(mApnObserver);
         mApnContexts.clear();
         mPrioritySortedApnContexts.clear();
+
+        if (mCdmaSsm != null) {
+            mCdmaSsm.dispose(this);
+        }
 
         destroyDataConnections();
     }
@@ -575,10 +591,11 @@ public final class DcTracker extends DcTrackerBase {
         boolean desiredPowerState = mPhone.getServiceStateTracker().getDesiredPowerState();
         IccRecords r = mIccRecords.get();
         boolean recordsLoaded = (r != null) ? r.getRecordsLoaded() : false;
+        boolean subscriptionFromNv = isNvSubscription();
 
         boolean allowed =
                     (attachedState || mAutoAttachOnCreation) &&
-                    recordsLoaded &&
+                    (subscriptionFromNv || recordsLoaded) &&
                     (mPhone.getState() == PhoneConstants.State.IDLE ||
                      mPhone.getServiceStateTracker().isConcurrentVoiceAndDataAllowed()) &&
                     internalDataEnabled &&
@@ -590,7 +607,9 @@ public final class DcTracker extends DcTrackerBase {
             if (!(attachedState || mAutoAttachOnCreation)) {
                 reason += " - Attached= " + attachedState;
             }
-            if (!recordsLoaded) reason += " - SIM not loaded";
+            if (!(subscriptionFromNv || recordsLoaded)) {
+                reason += " - SIM not loaded and not NV subscription";
+            }
             if (mPhone.getState() != PhoneConstants.State.IDLE &&
                     !mPhone.getServiceStateTracker().isConcurrentVoiceAndDataAllowed()) {
                 reason += " - PhoneState= " + mPhone.getState();
@@ -1986,6 +2005,19 @@ public final class DcTracker extends DcTrackerBase {
         notifyOffApnsOfAvailability(reason);
     }
 
+    private boolean isNvSubscription() {
+        int radioTech = mPhone.getServiceState().getRilDataRadioTechnology();
+        if (mCdmaSsm == null) {
+            return false;
+        }
+        if (UiccController.getFamilyFromRadioTechnology(radioTech) == UiccController.APP_FAM_3GPP2
+                && mCdmaSsm.getCdmaSubscriptionSource() ==
+                        CdmaSubscriptionSourceManager.SUBSCRIPTION_FROM_NV) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Based on the sim operator numeric, create a list for all possible
      * Data Connections and setup the preferredApn.
@@ -1993,7 +2025,11 @@ public final class DcTracker extends DcTrackerBase {
     private void createAllApnList() {
         mAllApnSettings = new ArrayList<ApnSetting>();
         IccRecords r = mIccRecords.get();
-        String operator = (r != null) ? r.getOperatorNumeric() : "";
+        String homeOperator = "";
+        if (isNvSubscription()){
+            homeOperator = SystemProperties.get("ro.cdma.home.operator.numeric");
+        }
+        String operator = (r != null) ? r.getOperatorNumeric() : homeOperator;
         if (operator != null) {
             String selection = "numeric = '" + operator + "'";
             // query only enabled apn.
@@ -2078,7 +2114,11 @@ public final class DcTracker extends DcTrackerBase {
         }
 
         IccRecords r = mIccRecords.get();
-        String operator = (r != null) ? r.getOperatorNumeric() : "";
+        String homeOperator = "";
+        if (isNvSubscription()){
+            homeOperator = SystemProperties.get("ro.cdma.home.operator.numeric");
+        }
+        String operator = (r != null) ? r.getOperatorNumeric() : homeOperator;
 
         // This is a workaround for a bug (7305641) where we don't failover to other
         // suitable APNs if our preferred APN fails.  On prepaid ATT sims we need to
