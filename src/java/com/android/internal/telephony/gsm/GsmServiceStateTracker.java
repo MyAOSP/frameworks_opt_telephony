@@ -1016,7 +1016,8 @@ public class GsmServiceStateTracker extends ServiceStateTracker {
                     SystemProperties.get(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC, "");
             operatorNumeric = mSS.getOperatorNumeric();
             mPhone.setSystemProperty(TelephonyProperties.PROPERTY_OPERATOR_NUMERIC, operatorNumeric);
-
+            updateCarrierMccMncConfiguration(operatorNumeric,
+                    prevOperatorNumeric, mPhone.getContext());
             if (operatorNumeric == null) {
                 if (DBG) log("operatorNumeric is null");
                 mPhone.setSystemProperty(TelephonyProperties.PROPERTY_OPERATOR_ISO_COUNTRY, "");
@@ -1447,12 +1448,14 @@ public class GsmServiceStateTracker extends ServiceStateTracker {
         String[] numericArray = mPhone.getContext().getResources().getStringArray(
                     com.android.internal.R.array.config_operatorConsideredNonRoaming);
 
-        if (numericArray.length == 0 || operatorNumeric == null)
+        if (numericArray.length == 0 || operatorNumeric == null) {
             return false;
+        }
 
         for (String numeric : numericArray) {
-            if (operatorNumeric.startsWith(numeric))
+            if (operatorNumeric.startsWith(numeric)) {
                 return true;
+            }
         }
         return false;
     }
@@ -1462,14 +1465,14 @@ public class GsmServiceStateTracker extends ServiceStateTracker {
         String[] numericArray = mPhone.getContext().getResources().getStringArray(
                     com.android.internal.R.array.config_sameNamedOperatorConsideredRoaming);
 
-        if (numericArray.length == 0 || operatorNumeric == null)
+        if (numericArray.length == 0 || operatorNumeric == null) {
             return false;
+        }
 
         for (String numeric : numericArray) {
-            if (operatorNumeric.startsWith(numeric))
+            if (operatorNumeric.startsWith(numeric)) {
                 return true;
-            else
-                return false;
+            }
         }
         return false;
     }
