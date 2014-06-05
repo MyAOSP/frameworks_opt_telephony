@@ -813,14 +813,6 @@ public abstract class ServiceStateTracker extends Handler {
         return value;
     }
 
-    protected void updateCarrierMccMncConfiguration(String newOp, String oldOp, Context context) {
-        // if we have a change in operator, notify wifi (even to/from none)
-        if (((newOp == null) && (TextUtils.isEmpty(oldOp) == false)) ||
-                ((newOp != null) && (newOp.equals(oldOp) == false))) {
-            MccTable.updateMccMncConfiguration(context, newOp, true);
-        }
-    }
-
     protected boolean isIwlanFeatureAvailable() {
         boolean iwlanAvailable = mPhoneBase.getContext().getResources()
                 .getBoolean(com.android.internal.R.bool.config_feature_iwlan_enabled);
@@ -857,5 +849,13 @@ public abstract class ServiceStateTracker extends Handler {
 
         DcTrackerBase dcTracker = mPhoneBase.mDcTracker;
         dcTracker.disableApnType(PhoneConstants.APN_TYPE_DEFAULT);
+    }
+
+    protected void updateCarrierMccMncConfiguration(String newOp, String oldOp, Context context) {
+        // if we have a change in operator, notify wifi (even to/from none)
+        if (((newOp == null) && (TextUtils.isEmpty(oldOp) == false)) ||
+                ((newOp != null) && (newOp.equals(oldOp) == false))) {
+            MccTable.updateMccMncConfiguration(context, newOp, true);
+        }
     }
 }
