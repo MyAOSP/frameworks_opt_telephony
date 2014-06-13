@@ -90,7 +90,6 @@ public final class ImsSMSDispatcher extends SMSDispatcher {
         // Register the mock SMS receiver to simulate the reception of SMS
         mMockSmsDispatcher = new MockSmsDispatcher();
         mMockSmsDispatcher.registerReceiver();
-    }
 
         mCi.registerForOn(this, EVENT_RADIO_ON, null);
         mCi.registerForImsNetworkStateChanged(this, EVENT_IMS_STATE_CHANGED, null);
